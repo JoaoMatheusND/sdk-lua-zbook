@@ -1,0 +1,12 @@
+sample:
+  name: ZBook Lua hello
+  description: >
+    Smallest zbook Lua app, prints the compiled bindings.
+tests:
+  sample.zbook_lua.hello:
+    tags:
+      - samples
+      - lua
+    platform_allow:
+      - zbook@p2/rp2350b/m33
+    build_only: true
