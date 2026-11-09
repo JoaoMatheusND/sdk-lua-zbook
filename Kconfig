@@ -53,6 +53,16 @@ config ZBOOK_LUA_BTN_QUEUE_TIMEOUT_MS
 	  How long the button callback may block publishing an event. 0 drops
 	  the event immediately if it cannot be queued.
 
+config ZBOOK_LUA_PIN
+	bool "zbook.io.pin"
+	select ZBOOK_INTERFACE_IO
+	select ZBOOK_INTERFACE_IO_PINS
+	help
+	  Expose the header pin-function factory (zbook_pin_*) to Lua as
+	  zbook.io.pin. Default off: the zbook_io_{gpio,adc,pwm,uart}
+	  backends are not on the interface main branch yet, so enabling this
+	  needs those backends (or mocks) linked into the application.
+
 endmenu
 
 endif # ZBOOK_LUA
