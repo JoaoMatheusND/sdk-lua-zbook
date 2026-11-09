@@ -1,0 +1,22 @@
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: joaomatheusnd
+      url-base: https://github.com/JoaoMatheusND
+
+  projects:
+    - name: sdk-zbook-interface
+      remote: joaomatheusnd
+      revision: b9ad19e068ab9af81f3f463dedd7bf025e13c4c9 # main
+      path: sdk
+      import: true
+
+    - name: sdk-lua-zbook
+      remote: joaomatheusnd
+      revision: c6678b6cbbcea72e3c791952a383edc67593bbfa # zbook-lua-init
+      path: wrapper/lua
+      import: true
+
+  self:
+    path: app

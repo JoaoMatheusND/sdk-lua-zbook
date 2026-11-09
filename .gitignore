@@ -1,0 +1,29 @@
+# West/Zephyr build artifacts
+/build/
+/build-*/
+/twister-out*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+
+# clangd index
+.cache/
+
+# Lua
+luac.out
+*.luac
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS cruft
+.DS_Store
+
+# Python
+__pycache__/
+.venv/
