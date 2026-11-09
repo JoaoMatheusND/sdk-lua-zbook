@@ -23,16 +23,16 @@ e runtime [`rodrigopex/lua_zephyr`](https://github.com/rodrigopex/lua_zephyr).
 
 ## O que a versão anterior já resolve
 
-| Peça | Como era | Decisão |
-|---|---|---|
-| Runtime Lua (5.5.0, thread, heap, REPL, fs, bytecode) | módulo `lua_zephyr` | ✅ manter; não vendorizar Lua |
-| `luaopen_zbook()` raiz | `zbook_lua.c` | ✅ manter |
-| Auto-registro de binding | `ZBOOK_LUA_PROTOCOL_DEFINE` + iterable section + `.ld` | ✅ generalizar p/ todas as categorias |
-| Hook `<script>_lua_setup()` | `zbook_lua_setup.c` escrito à mão em cada sample | 🔁 gerar automaticamente |
-| Stubs LuaLS (`sdk/*.lua`, `.luarc.json`) | um por periférico | ✅ manter |
-| Integração no build | sample faz glob de `interface/src` e `wrappers/lua/src` | ❌ virar módulo west |
-| Kconfig | `depends on ZBOOK_SPI && LUA` | 🔁 trocar por `select` |
-| Convenção de retorno | `err` inteiro (`0` / `-errno`) | ❓ em aberto |
+| Peça                                                 | Como era                                                    | Decisão                              |
+| ----------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------- |
+| Runtime Lua (5.5.0, thread, heap, REPL, fs, bytecode) | módulo `lua_zephyr`                                      | ✅ manter; não vendorizar Lua        |
+| `luaopen_zbook()` raiz                              | `zbook_lua.c`                                             | ✅ manter                             |
+| Auto-registro de binding                              | `ZBOOK_LUA_PROTOCOL_DEFINE` + iterable section + `.ld`  | ✅ generalizar p/ todas as categorias |
+| Hook `<script>_lua_setup()`                         | `zbook_lua_setup.c` escrito à mão em cada sample        | 🔁 gerar automaticamente              |
+| Stubs LuaLS (`sdk/*.lua`, `.luarc.json`)          | um por periférico                                          | ✅ manter                             |
+| Integração no build                                 | sample faz glob de `interface/src` e `wrappers/lua/src` | ❌ virar módulo west                 |
+| Kconfig                                               | `depends on ZBOOK_SPI && LUA`                             | 🔁 trocar por `select`              |
+| Convenção de retorno                                | `err` inteiro (`0` / `-errno`)                        | ❓ em aberto                          |
 
 ## 1. Topologia west
 
@@ -296,7 +296,184 @@ Cada passo verificável antes do próximo:
 6. Portar UART/SPI antigos quando a interface ganhar `protocols/`.
 7. Próximos periféricos conforme a interface crescer (display, sensores, ...).
 
+## 9. Consumindo como aplicação
+
+Aplicação final = repo próprio que é o **manifest (`self`)** e importa
+interface + wrapper. Cada import traz suas dependências em cascata.
+
+### `meu-app/west.yml`
+
+```yaml
+# Aplicação final usando ZBook interface + wrapper Lua.
+#
+#   west init -m git@github.com:<org>/meu-app.git zbook-ws
+#   cd zbook-ws && west update
+#   west build -b zbook@p2/rp2350b/m33 app
+
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: zephyr-book
+      url-base: https://github.com/zephyr-book
+
+  projects:
+    # Interface: import traz zephyr (deps/zephyr + allowlist de módulos em
+    # deps/modules) e o board module (zbook/).
+    - name: sdk-zbook-interface
+      remote: zephyr-book
+      revision: v0.1.0            # pinar tag/commit, não main
+      path: sdk
+      import: true
+
+    # Wrapper Lua: import traz lua_zephyr
+    # (deps/modules/lua/lua_zephyr, com submódulo lua/).
+    - name: sdk-lua-zbook
+      remote: zephyr-book
+      revision: v0.1.0
+      path: wrapper/lua
+      import: true
+
+  self:
+    path: app
+```
+
+### Workspace resultante
+
+```
+zbook-ws/
+├── .west/
+├── app/                          # repo da aplicação (manifest)
+│   ├── west.yml
+│   ├── CMakeLists.txt
+│   ├── prj.conf
+│   └── src/main.lua
+├── sdk/                          # sdk-zbook-interface → módulo zbook-interface
+├── wrapper/lua/                  # sdk-lua-zbook       → módulo zbook-lua
+├── zbook/                        # board module (via interface)
+└── deps/
+    ├── zephyr/                   # via interface
+    └── modules/
+        ├── hal/rpi_pico, cmsis_6, ...   # allowlist da interface
+        └── lua/lua_zephyr/              # via wrapper
+```
+
+### App mínimo
+
+`app/CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.20.0)
+include(${CMAKE_CURRENT_LIST_DIR}/../wrapper/lua/cmake/zbook_lua.cmake)
+zbook_lua_define_thread(src/main.lua)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+project(meu_app)
+zbook_lua_generate()
+```
+
+`app/prj.conf`:
+
+```
+CONFIG_LUA=y
+CONFIG_ZBOOK_LUA=y
+# CONFIG_ZBOOK_LUA_PIN=n   # desligar o que não usar
+```
+
+O `select` do wrapper liga os `ZBOOK_INTERFACE_*` necessários — o app não
+precisa conhecer os símbolos da interface.
+
+### Regras do west relevantes
+
+1. **`self` da interface é ignorado quando importada.** O path vem da entrada
+   do app (`path: sdk`); mantido igual ao da interface para o layout não mudar.
+2. **Precedência:** projetos declarados no manifest raiz vencem os importados;
+   entre imports, vence o primeiro. Para fixar outra versão do `lua_zephyr`,
+   declarar no app:
+
+   ```yaml
+   - name: lua_zephyr
+     url: https://github.com/rodrigopex/lua_zephyr
+     revision: <outro-commit>
+     submodules: true
+     path: deps/modules/lua/lua_zephyr
+   ```
+3. **Interface listando o wrapper:** se o `west.yml` da interface também
+   tiver `sdk-lua-zbook`, a entrada do app vence — sem conflito. Recomendado
+   manter essa entrada **comentada por padrão** na interface, para quem usa
+   só C não baixar Lua.
+4. **Allowlist de módulos do Zephyr** vem da interface (`hal_rpi_pico`,
+   `cmsis_6`, `picolib`, `littlefs`, `fatfs`). zbus é core do Zephyr, não
+   precisa de nada extra. Allowlist importada não pode ser estendida; módulo
+   extra (ex.: `nanopb` para message descriptors gerados) entra como projeto
+   explícito no app:
+
+   ```yaml
+   - name: nanopb
+     url: https://github.com/zephyrproject-rtos/nanopb
+     revision: <rev usada pelo zephyr v4.4.2>
+     path: deps/modules/lib/nanopb
+   ```
+5. **Pinar versões:** `lua_zephyr` é alpha; interface e wrapper apontam para
+   tag/commit, não `main`.
+
+### Variante de desenvolvimento
+
+Topologia atual continua válida: interface como manifest, wrapper como
+project nela (ou symlink para o clone local, ver README da interface).
+Samples do wrapper:
+
+```sh
+west build -b zbook@p2/rp2350b/m33 wrapper/lua/samples/hello
+```
+
+## 10. Status da implementação (09/11/2026)
+
+Cobre o que já está na `main` da interface (LED, BTN, pins).
+
+| Passo | Estado | Notas |
+|---|---|---|
+| 1. Scaffold (`module.yml`, `west.yml`, CMake, Kconfig) | ✅ | `zbook-lua`, `depends: [lua]`; lua_zephyr pinado em `66fc52fd` |
+| 2. Registro por categoria + helper CMake | ✅ | `ZBOOK_LUA_BINDING_DEFINE`, `zbook_lua_define_thread()` / `zbook_lua_generate()` |
+| 3. LED (`zbook.actuators.led`) | ✅ build | sample `samples/actuators/lua_led`; falta validar no HW |
+| 4. BTN via zbus (`zbook.io.btn`) | ✅ build | `btn.wait()` sobre `zbook_lua_btn_sub`; sample `samples/io/lua_btn`; falta HW |
+| 5. Pin (`zbook.io.pin`) | 🟡 compila | `default n`: backends `zbook_io_{gpio,adc,pwm,uart}` não estão na main da interface (link falha sem eles) |
+| Stubs LuaLS (`sdk/`) | ✅ | `zbook.lua`, `actuators/led.lua`, `io/btn.lua`, `io/pin.lua` |
+| Testes (`tests/`) | ⏳ | validar lua_zephyr em `native_sim` |
+| CI | ⏳ | |
+
+Builds verificados (`zbook@p2/rp2350b/m33`, Zephyr SDK 1.0.1), sem warnings:
+
+| Sample | FLASH | RAM |
+|---|---|---|
+| `samples/hello` | 171.9 KB | 50.0 KB |
+| `samples/actuators/lua_led` | 175.0 KB | 50.2 KB |
+| `samples/io/lua_btn` | 189.3 KB | 53.7 KB |
+
+### Achados durante a implementação
+
+- **Picolibc only.** Zephyr SDK ≥ 1.0 (o que o CI da interface instala) não
+  tem Newlib; o `choice` do lua_zephyr (`NEWLIB_LIBC if LUA`) cai em Picolibc,
+  e o Lua core (liolib, `luaL_loadfilex`) não linka: falta
+  `open/close/read/write/lseek`. Habilitar POSIX completo
+  (`POSIX_SYSTEM_INTERFACES` + `POSIX_FILE_SYSTEM` + `POSIX_DEVICE_IO`) ainda
+  deixa `lseek` faltando. Solução no wrapper:
+  `CONFIG_ZBOOK_LUA_LIBC_STUBS` (default `y if PICOLIBC && !POSIX_DEVICE_IO`),
+  stubs fracos com `ENOSYS` em `src/compat/`. Candidato a PR upstream no
+  lua_zephyr.
+- **REPL do lua_zephyr não tem hook de setup** → `zbook` indisponível no
+  REPL. Requer PR upstream (hook fraco tipo `luaz_repl_setup(L)`).
+- **`depends: zbook-interface` pendente** no `module.yml` até a interface
+  ganhar `name:` no dela.
+- **Teste local sem tocar a interface:** enquanto o `west.yml` da interface
+  não lista o wrapper, os módulos entram via
+  `-DZEPHYR_EXTRA_MODULES="<ws>/deps/modules/lua/lua_zephyr;<ws>/sdk-lua-zbook"`.
+  Com a entrada `path: wrapper/lua` + `import: true`, isso some.
+
 ## Decisões em aberto
+
+> Adotado provisoriamente na implementação: (1) `err` inteiro,
+> (2) `deps/modules/lua/lua_zephyr`, (4) wrapper seleciona pai + filho,
+> (5) zbus. (3) segue pendente.
 
 1. **Convenção de retorno:** manter `err` inteiro (`0`/`-errno`, estilo
    antigo — recomendado) ou idiom Lua `nil, msg, errno`?
