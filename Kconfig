@@ -21,4 +21,16 @@ config ZBOOK_LUA_LIBC_STUBS
 	  Zephyr's POSIX device I/O layer. Zephyr SDK >= 1.0 ships Picolibc
 	  only. Disabled automatically when POSIX_DEVICE_IO is enabled.
 
+menu "Actuators"
+
+config ZBOOK_LUA_LED
+	bool "zbook.actuators.led"
+	default y
+	select ZBOOK_INTERFACE_ACTUATORS
+	select ZBOOK_INTERFACE_ACTUATORS_LED
+	help
+	  Expose zbook_led_* to Lua as zbook.actuators.led.
+
+endmenu
+
 endif # ZBOOK_LUA
