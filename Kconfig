@@ -33,4 +33,26 @@ config ZBOOK_LUA_LED
 
 endmenu
 
+menu "I/O"
+
+config ZBOOK_LUA_BTN
+	bool "zbook.io.btn"
+	default y
+	select ZBOOK_INTERFACE_IO
+	select ZBOOK_INTERFACE_IO_BTN
+	help
+	  Expose zbook_btn_* to Lua as zbook.io.btn. Button events are
+	  published on the zbus channel zbook_lua_btn_chan and consumed from
+	  Lua with btn.wait() (or zephyr.zbus.observer_declare("zbook_lua_btn_sub")).
+
+config ZBOOK_LUA_BTN_QUEUE_TIMEOUT_MS
+	int "Button event publish timeout (ms)"
+	default 0
+	depends on ZBOOK_LUA_BTN
+	help
+	  How long the button callback may block publishing an event. 0 drops
+	  the event immediately if it cannot be queued.
+
+endmenu
+
 endif # ZBOOK_LUA
