@@ -1,0 +1,12 @@
+sample:
+  name: ZBook Lua buttons
+  description: >
+    Button events delivered to Lua over zbus toggle the matching LED.
+tests:
+  sample.zbook_lua.btn:
+    tags:
+      - samples
+      - lua
+    platform_allow:
+      - zbook@p2/rp2350b/m33
+    build_only: true
