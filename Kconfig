@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (c) Centro de Inovacao EDGE 2026
+
+menuconfig ZBOOK_LUA
+	bool "ZBook Lua binding"
+	depends on LUA
+	help
+	  Expose the ZBook interface to Lua scripts as the global `zbook`
+	  table (zbook.<category>.<peripheral>). Requires the lua_zephyr
+	  runtime (CONFIG_LUA).
+
+if ZBOOK_LUA
+
+config ZBOOK_LUA_LIBC_STUBS
+	bool "Weak POSIX file I/O stubs for the Lua core"
+	default y if PICOLIBC && !POSIX_DEVICE_IO
+	help
+	  Provide weak open/close/read/write/lseek stubs failing with ENOSYS so
+	  the Lua core (liolib, luaL_loadfilex) links against Picolibc without
+	  Zephyr's POSIX device I/O layer. Zephyr SDK >= 1.0 ships Picolibc
+	  only. Disabled automatically when POSIX_DEVICE_IO is enabled.
+
+endif # ZBOOK_LUA

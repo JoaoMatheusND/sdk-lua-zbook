@@ -1,0 +1,24 @@
+# West manifest fragment for sdk-lua-zbook.
+#
+# Not meant to be used as a top-level manifest: the interface repo (or a final
+# application) lists this repo with `import: true`, and west pulls the
+# runtime dependencies below transitively.
+#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) Centro de Inovacao EDGE
+
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: rodrigopex
+      url-base: https://github.com/rodrigopex
+
+  projects:
+    # Lua runtime for Zephyr: Lua 5.5 core (git submodule), per-thread heap,
+    # zbus bindings, REPL and filesystem loader. Pinned: upstream is alpha.
+    - name: lua_zephyr
+      remote: rodrigopex
+      revision: 66fc52fdf36a5c8c9e30addf0b829be3714f3c48
+      submodules: true
+      path: deps/modules/lua/lua_zephyr

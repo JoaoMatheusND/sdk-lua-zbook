@@ -1,0 +1,6 @@
+name: zbook-lua
+build:
+  cmake: .
+  kconfig: Kconfig
+  depends:
+    - lua
